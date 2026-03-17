@@ -36,3 +36,7 @@ The Fallout Index is a full-stack simulation tool designed to analyze and visual
 ---
 **Author:** Cache-22
 **Institution:** CMR Institute of Technology, Bengaluru
+---
+
+Output of Workflow's Successful Execution:
+<img width="1917" height="907" alt="image" src="https://github.com/user-attachments/assets/f05d5091-40e2-4eae-9cca-8c8123bf8d12" />
