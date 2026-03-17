@@ -7,7 +7,7 @@ The Fallout Index is a full-stack simulation tool designed to analyze and visual
 ## 🛠️ Tech Stack
 - **Frontend:** HTML5, Tailwind CSS, Leaflet.js (Geospatial Mapping)
 - **Backend Automation:** n8n (Workflow Orchestration)
-- **AI Engine:** OpenRouter (GPT-4 / Claude-3 / DeepSeek)
+- **AI Engine:** OpenRouter
 - **Deployment:** Vercel (Frontend) & Render (Backend/Docker)
 
 ## 🏗️ Architecture
