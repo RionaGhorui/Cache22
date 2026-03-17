@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SITREP | Strategic Fallout Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 75vh; filter: grayscale(0.6) contrast(1.3) brightness(0.7) sepia(0.2); }
+        .report-body ul { list-style-type: square; margin-left: 1.5rem; color: #a1a1aa; }
+        .report-body h3 { color: #f59e0b; font-weight: bold; margin-bottom: 0.5rem; text-transform: uppercase; }
+        /* Scanline effect for dystopian feel */
+        #map::after { content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03)); z-index: 1000; background-size: 100% 2px, 3px 100%; pointer-events: none; }
+    </style>
+</head>
+<body class="bg-black text-stone-300 font-mono p-4">
+
+    <header class="border-b border-zinc-800 pb-4 mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-black tracking-tighter text-amber-600 uppercase italic">Intel Map <span class="text-xs text-zinc-600 not-italic tracking-widest">Global Fallout Analysis</span></h1>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" id="aggressor" placeholder="AGGRESSOR" class="bg-zinc-950 border border-zinc-800 p-2 text-red-600 focus:border-red-600 outline-none w-40 uppercase text-xs">
+            <input type="text" id="victim" placeholder="VICTIM" class="bg-zinc-950 border border-zinc-800 p-2 text-blue-600 focus:border-blue-600 outline-none w-40 uppercase text-xs">
+            <button onclick="runSimulation()" class="bg-zinc-800 border border-zinc-600 text-white px-6 py-2 font-bold hover:bg-amber-600 hover:text-black transition-all">INITIATE ANALYSIS</button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-12 gap-4">
+        <div class="col-span-8 border border-zinc-800 bg-zinc-950 p-1 relative">
+            <div id="map"></div>
+        </div>
+
+        <div class="col-span-4 flex flex-col gap-4">
+            <div id="consequence-panel" class="border border-zinc-800 bg-zinc-900 p-6 h-[50vh] overflow-y-auto">
+                <div id="panel-placeholder" class="h-full flex flex-col items-center justify-center text-zinc-600 text-center">
+                    <span class="text-4xl mb-2">📡</span>
+                    <p class="text-xs uppercase tracking-widest">Select target nation on map to view tactical SITREP</p>
+                </div>
+                <div id="panel-content" class="hidden">
+                    <h2 id="country-name" class="text-2xl font-black text-amber-500 uppercase border-b border-amber-900/50 mb-4 pb-2"></h2>
+                    <div id="consequence-text" class="report-body text-sm leading-relaxed"></div>
+                </div>
+            </div>
+
+            <div class="border border-zinc-800 bg-black p-4 flex-grow overflow-hidden flex flex-col">
+                <div class="text-[10px] text-zinc-600 mb-2 uppercase tracking-tighter">Encrypted Data Stream</div>
+                <div id="chat-logs" class="text-[11px] space-y-1 overflow-y-auto h-32 text-green-500/80 font-mono">
+                    > NODE CONNECTED...<br>
+                    > SATCOM STABLE...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // GLOBAL STATE
+        let currentIntelReports = {}; 
+        const map = L.map('map', {zoomControl: false}).setView([20, 0], 2);
+        
+        // Using CartoDB Dark Matter for the "War Room" look
+        // TOPOGRAPHICAL / TERRAIN VERSION
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Source: US National Park Service',
+    maxZoom: 8
+}).addTo(map);
+
+        let geoJsonLayer;
+
+        // LOAD WORLD BORDERS
+        fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
+            .then(res => res.json())
+            .then(data => {
+                geoJsonLayer = L.geoJson(data, {
+                    style: { color: '#222', weight: 1, fillOpacity: 0.2, fillColor: '#111' },
+                    onEachFeature: (feature, layer) => {
+                        layer.on('mouseover', () => layer.setStyle({fillOpacity: 0.4, color: '#444'}));
+                        layer.on('mouseout', () => layer.setStyle({fillOpacity: 0.2, color: '#222'}));
+                        layer.on('click', (e) => showSitRep(feature.properties.name));
+                    }
+                }).addTo(map);
+            });
+
+        async function runSimulation() {
+            const aggr = document.getElementById('aggressor').value;
+            const vict = document.getElementById('victim').value;
+            
+            if(!aggr || !vict) return alert("INPUT REQUIRED");
+            logChat(`UPLOADING TARGETS: ${aggr} / ${vict}`);
+            
+            try {
+                const res = await fetch('http://localhost:5678/webhook-test/simulate-crisis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ aggressor: aggr, victim: vict })
+                });
+
+                const data = await res.json();
+                
+                // Extraction Logic (Handles OpenRouter or direct n8n JSON)
+                let rawContent = data.choices ? data.choices[0].message.content : data;
+                
+                // Clean markdown backticks if present
+                if (typeof rawContent === 'string') {
+                    rawContent = rawContent.replace(/```json|```/g, "").trim();
+                }
+
+                const aiResponse = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+
+                // We expect { "reports": { "CountryName": "Markdown" } }
+                if (aiResponse && aiResponse.reports) {
+                    currentIntelReports = aiResponse.reports;
+                    logChat("SITREP DATABASE UPDATED. MAP READY.");
+                    highlightAffectedCountries(Object.keys(currentIntelReports));
+                }
+            } catch (e) {
+                logChat(`ERROR: ${e.message}`);
+                console.error(e);
+            }
+        }
+
+        function highlightAffectedCountries(countryList) {
+            geoJsonLayer.eachLayer(layer => {
+                const name = layer.feature.properties.name;
+                if (countryList.includes(name)) {
+                    layer.setStyle({ fillColor: '#78350f', fillOpacity: 0.6, color: '#f59e0b', weight: 2 });
+                } else {
+                    layer.setStyle({ fillColor: '#111', fillOpacity: 0.2, color: '#222', weight: 1 });
+                }
+            });
+        }
+
+        function showSitRep(countryName) {
+            const placeholder = document.getElementById('panel-placeholder');
+            const content = document.getElementById('panel-content');
+            const report = currentIntelReports[countryName];
+
+            placeholder.classList.add('hidden');
+            content.classList.remove('hidden');
+
+            document.getElementById('country-name').innerText = countryName;
+            
+            if (report) {
+                document.getElementById('consequence-text').innerHTML = marked.parse(report);
+            } else {
+                document.getElementById('consequence-text').innerHTML = "<i>No tactical abnormalities detected in this sector. Monitoring status: PASSIVE.</i>";
+            }
+        }
+
+        function logChat(msg) {
+            const logs = document.getElementById('chat-logs');
+            logs.innerHTML += `<br>> ${new Date().toLocaleTimeString()} || ${msg}`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+    </script>
+</body>
+</html>

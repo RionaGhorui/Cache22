@@ -1,0 +1,19 @@
+# n8n sensitive data
+.n8n/
+n8n-debug.log
+encryption.key
+
+# Node.js / Environment
+node_modules/
+.env
+.env.local
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Deployment / Temp files
+dist/
+build/
+.vercel/
+

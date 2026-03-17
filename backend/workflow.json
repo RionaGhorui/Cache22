@@ -1,0 +1,151 @@
+{
+  "name": "Backend",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://news.google.com/rss/search?q=geopolitics+india+{{$json.body.aggressor}}&hl=en-IN",
+        "options": {}
+      },
+      "id": "4510f2ff-f9b5-4d95-a2e2-8d9987ea5aba",
+      "name": "Scrape News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        352,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"google/gemini-2.0-flash-001\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Return ONLY raw JSON. No markdown, no backticks. Required format: {heatmap: [{country: 3-letter ISO code, score: 0-100}]}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Simulate conflict fallout. Aggressor: China. Victim: India.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "df4eeb8a-62af-4762-9552-10dd02c78ca0",
+      "name": "OpenRouter AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        544,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        960,
+        208
+      ],
+      "id": "4fd1dc90-9caa-4e1a-9339-e627a8fd6126",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Grab the raw text response from the OpenRouter AI node\nlet rawText = $input.all()[0].json.choices[0].message.content;\n\n// 2. Strip out the Markdown backticks (```json and ```)\nlet cleanText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n\n// 3. Convert the clean text into a real JSON object\nlet finalJson = JSON.parse(cleanText);\n\n// 4. Send the perfectly formatted JSON to the next node\nreturn [{ json: finalJson }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        208
+      ],
+      "id": "77e5f53a-f5f2-446b-b38e-58e6cf1590e6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "simulate-crisis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        176,
+        208
+      ],
+      "id": "048519cf-12b9-4f91-a645-faf1806d256b",
+      "name": "Webhook",
+      "webhookId": "43baeed2-f06a-404a-b591-3d2c2a9d948d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Scrape News": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter AI": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Scrape News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bec2b744-6487-4d77-a3eb-a964e17f1780",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ef656e3bcd267fdaf6f5921d4fcb40fbf1a6764af0ebd2a15e92d240104b8c22"
+  },
+  "id": "3Sch2qvxAiMUchtr",
+  "tags": []
+}
